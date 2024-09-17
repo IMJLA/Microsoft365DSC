@@ -1,0 +1,20 @@
+[ClassVersion("1.0.0.0"), FriendlyName("AADHomeRealmDiscoveryPolicy")]
+class MSFT_AADHomeRealmDiscoveryPolicy : OMI_BaseResource
+{
+    [Key, Description("Display name for this policy. Required.")] String DisplayName;
+    [Write, Description("homeRealmDiscoveryPolicy")] String BodyParameter;
+    [Write, Description("Additional Parameters")] String AdditionalProperties;
+    [Write, Description(". To construct, see NOTES section for APPLIESTO properties and create a hash table.")] String AppliesTo;
+    [Write, Description("A string collection containing a JSON string that defines the rules and settings for a policy. The syntax for the definition differs for each derived policy type. Required.")] String Definition;
+    [Write, Description("Date and time when this object was deleted. Always null when the object hasn't been deleted.")] String DeletedDateTime;
+    [Write, Description("Description for this policy. Required.")] String Description;
+    [Write, Description("The unique identifier for an entity. Read-only.")] String Id;
+    [Write, Description("If set to true, activates this policy. There can be many policies for the same policy type, but only one can be activated as the organization default. Optional, default value is false.")] Boolean IsOrganizationDefault;
+    [Write, Description("Specify whether the Entra ID Home Realm Discovery Policy should exist or not."), ValueMap{"Present","Absent"}, Values{"Present","Absent"}] String Ensure;
+    [Write, Description("Credentials of the workload's Admin"), EmbeddedInstance("MSFT_Credential")] string Credential;
+    [Write, Description("Id of the Azure Active Directory application to authenticate with.")] String ApplicationId;
+    [Write, Description("Id of the Azure Active Directory tenant used for authentication.")] String TenantId;
+    [Write, Description("Thumbprint of the Azure Active Directory application's authentication certificate to use for authentication.")] String CertificateThumbprint;
+    [Write, Description("Managed ID being used for authentication.")] Boolean ManagedIdentity;
+    [Write, Description("Access token used for authentication.")] String AccessTokens[];
+};

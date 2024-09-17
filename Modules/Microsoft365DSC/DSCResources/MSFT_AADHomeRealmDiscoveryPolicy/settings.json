@@ -1,0 +1,32 @@
+{
+  "resourceName": "AADHomeRealmDiscoveryPolicy",
+  "description": "Use this resource to create a new homeRealmDiscoveryPolicy object.",
+  "roles": {
+    "read": [
+      "Role"
+    ],
+    "update": [
+      "Role"
+    ]
+  },
+  "permissions": {
+    "graph": {
+      "delegated": {
+        "read": [],
+        "update": []
+      },
+      "application": {
+        "read": [
+          {
+            "name": "Policy.Read.All"
+          }
+        ],
+        "update": [
+          {
+            "name": "Policy.Read.ApplicationConfiguration"
+          }
+        ]
+      }
+    }
+  }
+}
