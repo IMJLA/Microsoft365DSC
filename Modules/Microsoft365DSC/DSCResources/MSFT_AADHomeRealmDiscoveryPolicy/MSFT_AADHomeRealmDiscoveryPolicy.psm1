@@ -39,6 +39,31 @@ function ConvertFrom-PowerShelHashtableCode {
     return $out
 }
 
+function Get-AADHomeRealmDiscoveryPolicyInstance {
+
+    [CmdletBinding()]
+
+    param (
+        [string]$DisplayName,
+        [string]$Id
+    )
+
+    if ($PSBoundParameters.ContainsKey('Id')) {
+        $instance = Get-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $Id
+    }
+    else {
+        $instance = Get-MgBetaPolicyHomeRealmDiscoveryPolicy -Filter "DisplayName eq '$DisplayName'" -ErrorAction Stop
+    }
+
+    if ($instance.Count -gt 1) {
+        Write-Warning -Message "Found multiple instances of a HomeRealmDiscoveryPolicy named {$DisplayName}, which could result in inconsistencies retrieving its values. The instances will be sorted alphabetically by Id and the first one will be returned."
+        $instance = $instance | Sort-Object -Property Id | Select-Object -First 1
+    }
+
+    return $instance
+
+}
+
 function Get-TargetResource {
     [CmdletBinding()]
     [OutputType([System.Collections.Hashtable])]
@@ -112,9 +137,7 @@ function Get-TargetResource {
         $AccessTokens
     )
 
-    
-    New-M365DSCConnection -Workload MicrosoftGraph `
-        -InboundParameters $PSBoundParameters | Out-Null
+    New-M365DSCConnection -Workload MicrosoftGraph -InboundParameters $PSBoundParameters | Out-Null
 
     #Ensure the proper dependencies are installed in the current environment.
     Confirm-M365DSCDependencies
@@ -137,28 +160,26 @@ function Get-TargetResource {
         }
         else {
             
-            $instance = Get-MgBetaPolicyHomeRealmDiscoveryPolicy -DisplayName $DisplayName -ErrorAction Stop
+            $instance = Get-AADHomeRealmDiscoveryPolicyInstance -DisplayName $DisplayName -Id $Id -ErrorAction Stop
+
         }
         if ($null -eq $instance) {
             return $nullResult
         }
 
-        if ($instance.Count -gt 1) {
-            if ($PSBoundParameters.ContainsKey('id')) {
-                $instance = $instance | Where-Object -FilterScript { $_.Id -eq $Id }
-            }
-            else {
-                Write-Warning -Message "Multiple instances of a HomeRealmDiscoveryPolicy named {$DisplayName} were discovered which could result in inconsistencies retrieving its values."
-                $instance = $instance | Sort-Object -Property Id | Select-Object -First 1
-            }
+        if ($null -eq $instance.AdditionalProperties) {
+            Write-Host "instance has null AdditionalProperties"
         }
-
-        $AdditionalProperties = ConvertTo-PowerShellHashtableCode -Hashtable $instance.AdditionalProperties
+        else {
+            Write-Host "`r`ninstance has some additionalProperties: $($instance.AdditionalProperties.Keys)"
+        }
+        $AdditionalPropertiesAsString = ConvertTo-PowerShellHashtableCode -Hashtable $instance.AdditionalProperties
+        Write-Host $AdditionalPropertiesAsString -ForegroundColor Cyan
 
         $results = @{
             DisplayName           = $instance.DisplayName
             BodyParameter         = $instance.BodyParameter
-            AdditionalProperties  = $AdditionalProperties
+            AdditionalProperties  = $AdditionalPropertiesAsString
             AppliesTo             = $instance.AppliesTo
             Definition            = [string]$instance.Definition
             DeletedDateTime       = $instance.DeletedDateTime
@@ -277,18 +298,35 @@ function Set-TargetResource {
 
     # CREATE
     if ($Ensure -eq 'Present' -and $currentInstance.Ensure -eq 'Absent') {
-        
-        ConvertTo-PowerShellHashtableCode -Hashtable $setParameters | Out-File C:\Users\jlaca\Documents\code\DSC\out\troubleshoot.txt
         New-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
     }
     # UPDATE
     elseif ($Ensure -eq 'Present' -and $currentInstance.Ensure -eq 'Present') {
-        Update-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
+            
+        $currentInstance
+
+        if ($null -ne $currentInstance) {
+            $setParameters.Remove('Id')
+            $setParameters.Add('HomeRealmDiscoveryPolicyId', $currentInstance.Id)
+            Update-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
+        }
+        else {
+            Write-Warning "Could not find AADHomeRealmDiscoveryPolicy with Displayname '$DisplayName' to update it."
+        }
+
     }
     # REMOVE
     elseif ($Ensure -eq 'Absent' -and $currentInstance.Ensure -eq 'Present') {
-        
-        Remove-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
+
+        if ($null -ne $currentInstance) {
+            $setParameters.Remove('Id')
+            $setParameters.Add('HomeRealmDiscoveryPolicyId', $currentInstance.Id)
+            Remove-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $currentInstance
+        }
+        else {
+            Write-Warning "Could not find AADHomeRealmDiscoveryPolicy with Displayname '$DisplayName' to remove it."
+        }
+
     }
 }
 
@@ -463,6 +501,7 @@ function Export-TargetResource {
 
             $displayedKey = $config.Id
             Write-Host "    |---[$i/$($Script:exportedInstances.Count)] $displayedKey" -NoNewline
+
             $params = @{
                 
                 DisplayName           = $config.DisplayName
@@ -475,6 +514,7 @@ function Export-TargetResource {
             }
 
             $Results = Get-TargetResource @Params
+            Write-Host "    |---[$i/$($Script:exportedInstances.Count)] $($Results.AdditionalProperties)" -NoNewline
             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results
 
