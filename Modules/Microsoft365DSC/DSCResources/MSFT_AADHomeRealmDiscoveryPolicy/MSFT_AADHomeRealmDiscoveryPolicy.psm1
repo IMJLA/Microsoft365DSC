@@ -39,10 +39,23 @@ function ConvertTo-PowerShellHashtableCode {
 
 }
 
-function ConvertFrom-PowerShelHashtableCode {
+function ConvertFrom-M365DSCHashtableString {
+    param ([System.String]$String)
+    $KeyPairs = $String.Split("`n")
+    $out = @{}
+    ForEach ($pair in $KeyPairs) {
+        $split = $pair.Split('=')
+        $key = Remove-QuoteEncapsulation -String $split[0].Trim()
+        $value = Remove-QuoteEncapsulation -String ($split[1].Trim())
+        $out[$key] = $value
+    }
+    return $out
+}
+
+function ConvertFrom-PowerShellHashtableCode {
     param ([System.String]$String)
     $regex = '[^@{]([\s]*[^=]*[\s]*=[\s]*[^;\r\n}]*)[\s;]*'
-    $KeyPairs = [regex]::Matches($str, $regex).Value
+    $KeyPairs = [regex]::Matches($String, $regex).Value
     $out = @{}
     ForEach ($pair in $KeyPairs) {
         $split = $pair.Split('=')
@@ -299,7 +312,8 @@ function Set-TargetResource {
     $currentInstance = Get-TargetResource @PSBoundParameters
 
     $setParameters = Remove-M365DSCAuthenticationParameter -BoundParameters $PSBoundParameters
-    $SetParameters['AdditionalProperties'] = ConvertFrom-PowerShelHashtableCode -String $currentInstance.AdditionalProperties
+    #$SetParameters['AdditionalProperties'] = ConvertFrom-PowerShellHashtableCode -String $currentInstance.AdditionalProperties
+    $SetParameters['AdditionalProperties'] = ConvertFrom-M365DSCHashtableString -String $currentInstance.AdditionalProperties
 
     Write-Host "Set-TargetResource`tAdditionalProperties: $($currentInstance.AdditionalProperties)" -ForegroundColor Cyan
 
@@ -326,9 +340,7 @@ function Set-TargetResource {
     elseif ($Ensure -eq 'Absent' -and $currentInstance.Ensure -eq 'Present') {
 
         if ($null -ne $currentInstance) {
-            $setParameters.Remove('Id')
-            $setParameters.Add('HomeRealmDiscoveryPolicyId', $currentInstance.Id)
-            Remove-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $currentInstance
+            Remove-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $currentInstance.Id
         }
         else {
             Write-Warning "Could not find AADHomeRealmDiscoveryPolicy with Displayname '$DisplayName' to remove it."
