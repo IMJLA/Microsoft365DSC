@@ -2,9 +2,8 @@
 class MSFT_AADHomeRealmDiscoveryPolicy : OMI_BaseResource
 {
     [Key, Description("Display name for this policy. Required.")] String DisplayName;
-    [Write, Description("homeRealmDiscoveryPolicy")] String BodyParameter;
     [Write, Description("Additional Parameters")] String AdditionalProperties;
-    [Write, Description(". To construct, see NOTES section for APPLIESTO properties and create a hash table.")] String AppliesTo;
+    [Write, Description("The directoryObject collection that this policy has been applied to. Read-only. To construct, see NOTES section for APPLIESTO properties and create a hash table.")] String AppliesTo;
     [Write, Description("A string collection containing a JSON string that defines the rules and settings for a policy. The syntax for the definition differs for each derived policy type. Required.")] String Definition;
     [Write, Description("Date and time when this object was deleted. Always null when the object hasn't been deleted.")] String DeletedDateTime;
     [Write, Description("Description for this policy. Required.")] String Description;
