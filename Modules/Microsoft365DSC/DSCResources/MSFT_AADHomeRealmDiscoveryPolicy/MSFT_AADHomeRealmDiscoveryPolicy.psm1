@@ -194,6 +194,11 @@ function Get-TargetResource {
         #$AdditionalPropertiesAsString = ConvertTo-PowerShellHashtableCode -Hashtable $instance.AdditionalProperties
         $AdditionalPropertiesAsString = Convert-M365DscHashtableToString -Hashtable $instance.AdditionalProperties
 
+        # Dollar signs in the exported .ps1 file must be escaped with backticks, otherwise they will be parsed by PowerShell during .mof compilation resulting in an inaccurate .mof.
+        if ($Script:ExportMode) {
+            $AdditionalPropertiesAsString = $AdditionalPropertiesAsString -replace '\$', '`$'
+        }
+
         $results = @{
             DisplayName           = $instance.DisplayName
             AdditionalProperties  = $AdditionalPropertiesAsString
