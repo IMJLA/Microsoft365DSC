@@ -24,26 +24,13 @@ function ConvertTo-PowerShellHashtableCode {
         [System.String]$KeyValuePadding = ' '
         #[System.String]$SpacesBeforeValue = '',
         #[System.String]$SpacesInOneTab = '',
-        #[System.String]$StringBetweenKeyValuePairs = " ; ",
+        #[System.String]$StringBetweenKeyValuePairs = ";",
         #[System.String]$HashtablePadding = '',
         #[System.String]$KeyValuePadding = ''
     )
     
     $KeyStrings = ForEach ($Key in $Hashtable.Keys) {
-        
-        <# Added the regex replace here because the string ends up being parsed by powershell, causing the issue below:
-            <Param Name="AdditionalProperties">
-                <CurrentValue>@{'@odata.context'='https://graph.microsoft.com/beta/$metadata#policies/homeRealmDiscoveryPolicies/$entity'}</CurrentValue>
-                <DesiredValue>@{'@odata.context'='https://graph.microsoft.com/beta/#policies/homeRealmDiscoveryPolicies/'}</DesiredValue>
-            </Param>
-        #>
-        "'$Key'$KeyValuePadding=$KeyValuePadding'$($Hashtable[$Key] -replace '\$', '`$')'"
-        <# However, this does not solve the problem, because now the backtick does not get parsed like the dollar sign does:
-            <Param Name="AdditionalProperties">
-                <CurrentValue>@{'@odata.context'='https://graph.microsoft.com/beta/`$metadata#policies/homeRealmDiscoveryPolicies/`$entity'}</CurrentValue>
-                <DesiredValue>@{'@odata.context'='https://graph.microsoft.com/beta/$metadata#policies/homeRealmDiscoveryPolicies/$entity'}</DesiredValue>
-            </Param>
-        #>
+        "'$Key'$KeyValuePadding=$KeyValuePadding'$($Hashtable[$Key])'"
     }
 
     $KeysString = $KeyStrings -join "$StringBetweenKeyValuePairs$SpacesBeforeValue$SpacesInOneTab"
@@ -194,7 +181,7 @@ function Get-TargetResource {
         #$AdditionalPropertiesAsString = ConvertTo-PowerShellHashtableCode -Hashtable $instance.AdditionalProperties
         $AdditionalPropertiesAsString = Convert-M365DscHashtableToString -Hashtable $instance.AdditionalProperties
 
-        # Dollar signs in the exported .ps1 file must be escaped with backticks, otherwise they will be parsed by PowerShell during .mof compilation resulting in an inaccurate .mof.
+        # Escape dollar signs in the exported .ps1 DSC config file with backticks so they won't be parsed by PowerShell during .mof compilation resulting in an inaccurate .mof.
         if ($Script:ExportMode) {
             $AdditionalPropertiesAsString = $AdditionalPropertiesAsString -replace '\$', '`$'
         }
