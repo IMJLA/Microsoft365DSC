@@ -62,7 +62,7 @@ function Get-AADHomeRealmDiscoveryPolicyInstance {
         [System.String]$Id
     )
 
-    if ($PSBoundParameters.ContainsKey('Id')) {
+    if (-not [string]::IsNullOrEmpty($Id)) {
         $instance = Get-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $Id
     }
     else {
