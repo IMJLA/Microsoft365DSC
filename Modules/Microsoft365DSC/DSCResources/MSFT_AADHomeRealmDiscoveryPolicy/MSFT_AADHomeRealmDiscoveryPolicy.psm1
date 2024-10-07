@@ -22,15 +22,24 @@ function ConvertTo-PowerShellHashtableCode {
         [System.String]$StringBetweenKeyValuePairs = "`r`n",
         [System.String]$HashtablePadding = "`r`n",
         [System.String]$KeyValuePadding = ' '
-        #[System.String]$SpacesBeforeValue = '',
-        #[System.String]$SpacesInOneTab = '',
-        #[System.String]$StringBetweenKeyValuePairs = ";",
-        #[System.String]$HashtablePadding = '',
-        #[System.String]$KeyValuePadding = ''
     )
     
     $KeyStrings = ForEach ($Key in $Hashtable.Keys) {
-        "'$Key'$KeyValuePadding=$KeyValuePadding'$($Hashtable[$Key])'"
+        $Value = $Hashtable[$Key]
+        switch ($Value.GetType().FullName) {
+            'System.Collections.HashTable' {
+                $ValueString = ConvertTo-PowerShellHashtableCode -Hashtable $Value -SpacesBeforeValue '' -SpacesInOneTab '' -StringBetweenKeyValuePairs ";" -HashtablePadding '' -KeyValuePadding ''
+            }
+            'System.Boolean' {
+                $ValueString = "`$$Value"
+            }
+            default {
+                [string]$ValueString = $Value
+                $ValueString = $ValueString.Replace("'", "''")
+                $ValueString = "'$ValueString'"
+            }
+        }
+        "'$Key'$KeyValuePadding=$KeyValuePadding$ValueString"
     }
 
     $KeysString = $KeyStrings -join "$StringBetweenKeyValuePairs$SpacesBeforeValue$SpacesInOneTab"
@@ -44,10 +53,18 @@ function ConvertFrom-M365DSCHashtableString {
     $KeyPairs = $String.Split("`n")
     $out = @{}
     ForEach ($pair in $KeyPairs) {
+        $key = $null
+        $value = $null
         $split = $pair.Split('=')
-        $key = Remove-QuoteEncapsulation -String $split[0].Trim()
-        $value = Remove-QuoteEncapsulation -String ($split[1].Trim())
-        $out[$key] = $value
+        if ($split[0]) {
+            $key = Remove-QuoteEncapsulation -String $split[0].Trim()
+        }
+        if ($split[1]) {
+            $value = Remove-QuoteEncapsulation -String ($split[1].Trim())
+        }
+        if ($key) {
+            $out[$key] = $value
+        }
     }
     return $out
 }
@@ -58,10 +75,18 @@ function ConvertFrom-PowerShellHashtableCode {
     $KeyPairs = [regex]::Matches($String, $regex).Value
     $out = @{}
     ForEach ($pair in $KeyPairs) {
+        $key = $null
+        $value = $null
         $split = $pair.Split('=')
-        $key = Remove-QuoteEncapsulation -String $split[0].Trim()
-        $value = Remove-QuoteEncapsulation -String ($split[1].Trim())
-        $out[$key] = $value
+        if ($split[0]) {
+            $key = Remove-QuoteEncapsulation -String $split[0].Trim()
+        }
+        if ($split[1]) {
+            $value = Remove-QuoteEncapsulation -String ($split[1].Trim())
+        }
+        if ($key) {
+            $out[$key] = $value
+        }
     }
     return $out
 }
@@ -83,6 +108,8 @@ function Get-AADHomeRealmDiscoveryPolicyInstance {
         if ($instance.Count -gt 1) {
             Write-Warning -Message "Found multiple instances of a HomeRealmDiscoveryPolicy named {$DisplayName}, which could result in inconsistencies retrieving its values. The instances will be sorted alphabetically by Id and the first one will be returned."
             $instance = $instance | Sort-Object -Property Id | Select-Object -First 1
+        }
+        if ($instance) {
             # Retrieve the policy by ID because this is the only way to retrieve all properties (specifically AdditionalProperties was noticed as missing)
             $instance = Get-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $instance.Id
         }
@@ -191,7 +218,8 @@ function Get-TargetResource {
         if ($null -eq $instance) {
             return $nullResult
         }
-        #$AdditionalPropertiesAsString = ConvertTo-PowerShellHashtableCode -Hashtable $instance.AdditionalProperties
+
+        # Convert the AdditionalProperties dictionary of properties into a string using a standard m365dsc format.
         $AdditionalPropertiesAsString = Convert-M365DscHashtableToString -Hashtable $instance.AdditionalProperties
 
         # Escape dollar signs in the exported .ps1 DSC config file with backticks so they won't be parsed by PowerShell during .mof compilation resulting in an inaccurate .mof.
@@ -312,14 +340,18 @@ function Set-TargetResource {
     $currentInstance = Get-TargetResource @PSBoundParameters
 
     $setParameters = Remove-M365DSCAuthenticationParameter -BoundParameters $PSBoundParameters
-    #$SetParameters['AdditionalProperties'] = ConvertFrom-PowerShellHashtableCode -String $currentInstance.AdditionalProperties
-    $SetParameters['AdditionalProperties'] = ConvertFrom-M365DSCHashtableString -String $currentInstance.AdditionalProperties
 
-    Write-Host "Set-TargetResource`tAdditionalProperties: $($currentInstance.AdditionalProperties)" -ForegroundColor Cyan
+    # Convert the AdditionalProperties string (which uses a standard m365dsc format) into a hashtable of properties as required by the New- or Update- Cmdlets.
+    $setParameters['AdditionalProperties'] = ConvertFrom-M365DSCHashtableString -String $currentInstance.AdditionalProperties
 
     # CREATE
     if ($Ensure -eq 'Present' -and $currentInstance.Ensure -eq 'Absent') {
-        New-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
+
+        $ParamString = ConvertTo-PowerShellHashtableCode -Hashtable $setParameters -SpacesBeforeValue '' -SpacesInOneTab '' -StringBetweenKeyValuePairs ";" -HashtablePadding '' -KeyValuePadding ''
+        Write-Verbose "`$Params = $ParamString"
+        Write-Verbose "New-MgBetaPolicyHomeRealmDiscoveryPolicy @Params"
+        New-MgBetaPolicyHomeRealmDiscoveryPolicy @setParameters
+
     }
     # UPDATE
     elseif ($Ensure -eq 'Present' -and $currentInstance.Ensure -eq 'Present') {
@@ -327,9 +359,14 @@ function Set-TargetResource {
         $currentInstance
 
         if ($null -ne $currentInstance) {
+
             $setParameters.Remove('Id')
             $setParameters.Add('HomeRealmDiscoveryPolicyId', $currentInstance.Id)
-            Update-MgBetaPolicyHomeRealmDiscoveryPolicy @SetParameters
+            $ParamString = ConvertTo-PowerShellHashtableCode -Hashtable $setParameters -SpacesBeforeValue '' -SpacesInOneTab '' -StringBetweenKeyValuePairs ";" -HashtablePadding '' -KeyValuePadding ''
+            Write-Verbose "`$Params = $ParamString"
+            Write-Verbose "Update-MgBetaPolicyHomeRealmDiscoveryPolicy @Params"
+            Update-MgBetaPolicyHomeRealmDiscoveryPolicy @setParameters
+
         }
         else {
             Write-Warning "Could not find AADHomeRealmDiscoveryPolicy with Displayname '$DisplayName' to update it."
@@ -340,7 +377,10 @@ function Set-TargetResource {
     elseif ($Ensure -eq 'Absent' -and $currentInstance.Ensure -eq 'Present') {
 
         if ($null -ne $currentInstance) {
+
+            Write-Verbose "Remove-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $($currentInstance.Id)"
             Remove-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $currentInstance.Id
+
         }
         else {
             Write-Warning "Could not find AADHomeRealmDiscoveryPolicy with Displayname '$DisplayName' to remove it."
@@ -505,8 +545,6 @@ function Export-TargetResource {
             # Retrieve the policy by ID because this is the only way to retrieve all properties (specifically AdditionalProperties was noticed as missing)
             Get-MgBetaPolicyHomeRealmDiscoveryPolicy -HomeRealmDiscoveryPolicyId $ThisInstance.Id -ErrorAction Stop
         }
-
-
 
         $i = 1
         $dscContent = ''

@@ -21,11 +21,11 @@ Configuration Example
     Import-DscResource -ModuleName Microsoft365DSC
     node localhost
     {
-        AADHomeRealmDiscoveryPolicy "AADHomeRealmDiscoveryPolicy-test2" {
+        AADHomeRealmDiscoveryPolicy "AADHomeRealmDiscoveryPolicy-test" {
             AdditionalProperties  = "@odata.context=https://graph.microsoft.com/beta/`$metadata#policies/homeRealmDiscoveryPolicies/`$entity";
             Definition            = "{`"HomeRealmDiscoveryPolicy`":{`"AccelerateToFederatedDomain`":true,`"PreferredDomain`":`"federated.example.edu`",`"AlternateIdLogin`":{`"Enabled`":true}}}";
-            DisplayName           = "test2-renaed";
-            Ensure                = "Absent";
+            DisplayName           = "test";
+            Ensure                = "Absent"; #DRIFT
             IsOrganizationDefault = $False;
             ApplicationId         = $ApplicationId;
             TenantId              = $TenantId;
@@ -34,3 +34,5 @@ Configuration Example
         
     }
 }
+
+Example -ApplicationId $env:M365DSCApplicationId -CertificateThumbprint $env:M365DSCCertificateThumbprint -TenantId $env:M365DSCTenantId
